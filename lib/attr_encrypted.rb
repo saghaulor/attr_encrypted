@@ -310,6 +310,10 @@ module AttrEncrypted
 
       # Returns attr_encrypted options evaluated in the current object's scope for the attribute specified
       def evaluated_attr_encrypted_options_for(attribute)
+        if self.class.encrypted_attributes[attribute.to_sym][:mode] == :per_attribute_iv_and_salt
+          self.load_iv_for_attribute(attribute, "encrypted_#{attribute.to_s}")
+          self.load_salt_for_attribute(attribute, "encrypted_#{attribute.to_s}")
+        end
         self.class.encrypted_attributes[attribute.to_sym].inject({}) { |hash, (option, value)| hash.merge!(option => evaluate_attr_encrypted_option(value)) }
       end
 
@@ -326,7 +330,7 @@ module AttrEncrypted
         end
       end
 
-      def load_iv_for_attribute (attribute, encrypted_attribute_name, algorithm)
+      def load_iv_for_attribute (attribute, encrypted_attribute_name, algorithm = "aes-256-cbc")
         iv = send("#{encrypted_attribute_name.to_s + "_iv"}")
           if(iv == nil)
             begin
