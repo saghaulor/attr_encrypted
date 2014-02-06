@@ -15,6 +15,7 @@ if defined?(ActiveRecord::Base)
             if ::ActiveRecord::VERSION::STRING < "3.0" || ::ActiveRecord::VERSION::STRING > "3.1"
               def assign_attributes_with_attr_encrypted(*args)
                 attributes = args.shift
+                return unless attributes.is_a?(Hash)
                 attributes =
                   if attributes.respond_to?(:with_indifferent_access)
                     attributes.with_indifferent_access
@@ -27,11 +28,13 @@ if defined?(ActiveRecord::Base)
               end
               alias_method_chain :assign_attributes, :attr_encrypted
             else
-              def attributes_with_attr_encrypted=(attributes)
+              def attributes_with_attr_encrypted=(*args)
+                attributes = args.shift
+                return unless attributes.is_a?(Hash)
                 attributes = attributes.with_indifferent_access
                 encrypted_attributes = self.class.encrypted_attributes.keys
-                self.attributes_without_attr_encrypted = attributes.except(*encrypted_attributes)
-                self.attributes_without_attr_encrypted = attributes.slice(*encrypted_attributes)
+                self.send(:attributes_without_attr_encrypted=, attributes.except(*encrypted_attributes), *args)
+                self.send(:attributes_without_attr_encrypted=, attributes.slice(*encrypted_attributes), *args)
               end
               alias_method_chain :attributes=, :attr_encrypted
             end
