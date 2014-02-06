@@ -289,4 +289,16 @@ class AttrEncryptedTest < Test::Unit::TestCase
     assert @user.email?
   end
 
+  def test_should_evaluate_attr_encrypted_options_per_instance
+    @user_1 = User.new
+    @user_1.email = 'test@example.com'
+    assert_equal @user_1.encrypted_email_salt, @user_1.evaluated_attr_encrypted_options_for(:email)[:salt]
+    @user_2 = User.new
+    @user_2.email = 'test@example.com'
+    assert_equal @user_2.encrypted_email_salt, @user_2.evaluated_attr_encrypted_options_for(:email)[:salt]
+    assert_equal @user_1.encrypted_email_salt, @user_1.evaluated_attr_encrypted_options_for(:email)[:salt]
+    # ^^^^^ That is failing because this is failing vvvvvvv
+    assert_not_equal @user_1.evaluated_attr_encrypted_options_for(:email)[:salt], @user_2.encrypted_email_salt
+  end
+
 end
