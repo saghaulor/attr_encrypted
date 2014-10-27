@@ -191,6 +191,7 @@ module AttrEncrypted
   #   email = User.decrypt(:email, 'SOME_ENCRYPTED_EMAIL_STRING')
   def decrypt(attribute, encrypted_value, options = {})
     options = encrypted_attributes[attribute.to_sym].merge(options)
+    options = evaluated_attr_encrypted_options_for(attribute)
     if options[:if] && !options[:unless] && !encrypted_value.nil? && !(encrypted_value.is_a?(String) && encrypted_value.empty?)
       encrypted_value = encrypted_value.unpack(options[:encode]).first if options[:encode]
       value = options[:encryptor].send(options[:decrypt_method], options.merge!(:value => encrypted_value))
@@ -217,6 +218,7 @@ module AttrEncrypted
   #   encrypted_email = User.encrypt(:email, 'test@example.com')
   def encrypt(attribute, value, options = {})
     options = encrypted_attributes[attribute.to_sym].merge(options)
+    options = evaluated_attr_encrypted_options_for(attribute)
     if options[:if] && !options[:unless] && !value.nil? && !(value.is_a?(String) && value.empty?)
       value = options[:marshal] ? options[:marshaler].send(options[:dump_method], value) : value.to_s
       encrypted_value = options[:encryptor].send(options[:encrypt_method], options.merge!(:value => value))
@@ -276,7 +278,8 @@ module AttrEncrypted
     #  @user = User.new('some-secret-key')
     #  @user.decrypt(:email, 'SOME_ENCRYPTED_EMAIL_STRING')
     def decrypt(attribute, encrypted_value)
-      self.class.decrypt(attribute, encrypted_value, evaluated_attr_encrypted_options_for(attribute))
+      load_per_attribute_iv_and_salt(attribute) if self.class.encrypted_attributes[attribute.to_sym][:mode] == :per_attribute_iv_and_salt
+      self.class.decrypt(attribute, encrypted_value, self.class.encrypted_attributes[attribute.to_sym])
     end
 
     # Encrypts a value for the attribute specified using options evaluated in the current object's scope
@@ -295,19 +298,20 @@ module AttrEncrypted
     #  @user = User.new('some-secret-key')
     #  @user.encrypt(:email, 'test@example.com')
     def encrypt(attribute, value)
-      self.class.encrypt(attribute, value, evaluated_attr_encrypted_options_for(attribute))
+      load_per_attribute_iv_and_salt(attribute) if self.class.encrypted_attributes[attribute.to_sym][:mode] == :per_attribute_iv_and_salt
+      self.class.encrypt(attribute, value, self.class.encrypted_attributes[attribute.to_sym])
     end
 
     protected
 
       # Returns attr_encrypted options evaluated in the current object's scope for the attribute specified
       def evaluated_attr_encrypted_options_for(attribute)
-        if self.class.encrypted_attributes[attribute.to_sym][:mode] == :per_attribute_iv_and_salt
-          load_iv_for_attribute(attribute, self.class.encrypted_attributes[attribute.to_sym][:algorithm])
-          load_salt_for_attribute(attribute)
-        end
+        self.encrypted_attributes[attribute.to_sym].inject({}) { |hash, (option, value)| hash[option] = evaluate_attr_encrypted_option(value); hash }
+      end
 
-        self.class.encrypted_attributes[attribute.to_sym].inject({}) { |hash, (option, value)| hash[option] = evaluate_attr_encrypted_option(value); hash }
+      def load_per_attribute_iv_and_salt(attribute)
+        load_iv_for_attribute(attribute, self.class.encrypted_attributes[attribute.to_sym][:algorithm])
+        load_salt_for_attribute(attribute)
       end
 
       # Evaluates symbol (method reference) or proc (responds to call) options
